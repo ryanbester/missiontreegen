@@ -68,5 +68,7 @@ class WebExtractor:
             else:
                 redirect_end = True
 
+        # remove fragment from URL
+        next_loc = next_loc.split('#')[0]
         Logger.log_debug(colored(f'URL redirects to "{next_loc}"', 'cyan'))
         return next_loc

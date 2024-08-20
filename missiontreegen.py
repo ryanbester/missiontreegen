@@ -26,6 +26,7 @@ from termcolor import colored
 
 from extractors import *
 from logger import Logger
+from styler import Styler
 
 os.environ["PATH"] += os.pathsep + 'C:/Program Files/Graphviz/bin'
 
@@ -65,12 +66,15 @@ def main():
     extract_parser.set_defaults(func=extract)
 
     generate_tree_parser = subparsers.add_parser('generate-tree', help='generate a tree')
+    generate_tree_parser.add_argument('--dpi', required=False, help='the DPI of the output', default='96')
+    generate_tree_parser.add_argument('--engine', required=False, help='the engine', default='dot')
+    generate_tree_parser.add_argument('--format', required=True, help='the format of the tree')
     generate_tree_parser.add_argument('--input-file', required=True, help='input file to generate the tree from')
     generate_tree_parser.add_argument('--output-file', required=True, help='output file for the generated tree')
     generate_tree_parser.add_argument("--part", required=False, help='the part to generate the tree for')
-    generate_tree_parser.add_argument('--subgraphs', required=False, default=False, help='draw borders around each part')
     generate_tree_parser.add_argument('--style', required=False, help='the style file')
-    generate_tree_parser.add_argument('--format', required=True, help='the format of the tree')
+    generate_tree_parser.add_argument('--subgraphs', required=False, default=False,
+                                      help='draw borders around each part')
     generate_tree_parser.set_defaults(func=generate_tree)
 
     args = parser.parse_args()
@@ -156,44 +160,31 @@ def generate_tree(args):
     with open(args.input_file, 'r', encoding='utf-8') as f:
         data = json.load(f)
 
-    if args.style is not None:
-        with open(args.style, 'r', encoding='utf-8') as f:
-            style = json.load(f)
+    Styler.load_style(args.style)
 
     fmt = args.format
     if args.format == 'drawio':
         fmt = 'png'
 
-    dot = Digraph(comment='Mission Dependency Graph', format=fmt, engine='dot')
+    dot = Digraph(comment='Mission Dependency Graph', format=fmt, engine=args.engine)
     dot.attr(overlap='false')
     dot.attr(sep='0.5')
     dot.attr(splines='true')
     dot.attr(rankdir='TB')
+    dot.attr(dpi=args.dpi)
 
     for part in data['parts']:
         if args.subgraphs:
             with dot.subgraph(name=f'cluster_{part['title'].replace(" ", "_")}') as c:
                 c.attr(label=part['title'], color='blue', style='dashed')
                 for mission in part['missions']:
-                    c.node(mission['id'], mission['title'])
+                    Styler.make_node(dot, mission['id'], mission['title'], mission['tags'])
 
                     for dependency in mission['depends_on']:
                         c.edge(dependency, mission['id'])
         else:
             for mission in part['missions']:
-                # dot.node(mission['id'], mission['title'], image='image.png', shape='rectangle')
-
-                if style is not None:
-                    node_style = None
-                    for tag in mission['tags']:
-                        if tag in style:
-                            node_style = style[tag]
-                    if node_style is None:
-                        node_style = style['default']
-                    dot.node(mission['id'], mission['title'], shape='rectangle', style='filled',
-                             fillcolor=node_style['background_color'])
-                else:
-                    dot.node(mission['id'], mission['title'], shape='rectangle')
+                Styler.make_node(dot, mission['id'], mission['title'], mission['tags'])
 
                 for dependency in mission['depends_on']:
                     dot.edge(dependency, mission['id'])
